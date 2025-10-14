@@ -236,8 +236,9 @@ class VideoDownloaderUI:
       clipboard = self.master.clipboard_get()
       self.url_entry.delete(0, tk.END)
       self.url_entry.insert(0, clipboard)
-    except:
-      pass
+    except tk.TclError:
+      # 可能因剪貼簿不可用或存取失敗，忽略即可
+      return
 
   def _browse_path(self):
     """瀏覽選擇路徑"""
@@ -283,7 +284,7 @@ class VideoDownloaderUI:
     threading.Thread(target=self._execute_download, daemon=True).start()
 
     self.log_message(
-      f"開始下載 {'影片' if download_type == DOWNLOAD_TYPE_VIDEO else '音樂'}: {url}")
+        f"開始下載 {'影片' if download_type == DOWNLOAD_TYPE_VIDEO else '音樂'}: {url}")
 
   def _execute_download(self):
     """執行下載（在背景執行緒）"""
@@ -296,10 +297,9 @@ class VideoDownloaderUI:
 
   def _cancel_download(self):
     """取消下載"""
-    if self.current_task:
-      if messagebox.askyesno("確認", "確定要取消下載嗎？"):
-        self.current_task.cancel()
-        self.log_message("使用者取消下載")
+    if self.current_task and messagebox.askyesno("確認", "確定要取消下載嗎？"):
+      self.current_task.cancel()
+      self.log_message("使用者取消下載")
 
   def _on_progress(self, data: dict):
     """進度更新回調"""
@@ -307,7 +307,7 @@ class VideoDownloaderUI:
 
   def _on_complete(self, file_path: str, info: dict):
     """下載完成回調"""
-    self.message_queue.put(('complete', (file_path, info)))
+    self.message_queue.put(('complete', file_path))
 
   def _on_error(self, error_msg: str):
     """錯誤回調"""
@@ -322,7 +322,7 @@ class VideoDownloaderUI:
         if msg_type == 'progress':
           self._update_progress(data)
         elif msg_type == 'complete':
-          self._handle_complete(data[0], data[1])
+          self._handle_complete(data)
         elif msg_type == 'error':
           self._handle_error(data)
         elif msg_type == 'state':
@@ -337,20 +337,37 @@ class VideoDownloaderUI:
     status = data.get('status')
 
     if status == 'downloading':
-      percentage = data.get('percentage', 0)
-      speed = data.get('speed', 0)
-      eta = data.get('eta', 0)
-      downloaded = data.get('downloaded', 0)
-      total = data.get('total', 0)
+      # 取得原始數值
+      percentage_raw = data.get('percentage')
+      speed_raw = data.get('speed')
+      eta_raw = data.get('eta')
+      downloaded_raw = data.get('downloaded')
+      total_raw = data.get('total')
 
+      # 將非數值(None/字串等)轉為安全的數值
+      def _num(v, default=0.0):
+        return v if isinstance(v, (int, float)) else default
+
+      percentage = max(0.0, min(100.0, _num(percentage_raw)))
+      speed = _num(speed_raw)
+      eta = _num(eta_raw, default=0)
+      downloaded = _num(downloaded_raw)
+      total = _num(total_raw)
+
+      # 更新進度條
       self.progress_bar['value'] = percentage
 
-      speed_str = format_size(speed) + "/s" if speed > 0 else "計算中..."
+      # 建立顯示字串 (避免 None 比較/格式化造成例外)
+      speed_str = f"{format_size(speed)}/s" if speed > 0 else "計算中..."
       eta_str = format_time(eta) if eta > 0 else "計算中..."
-      size_str = f"{format_size(downloaded)} / {format_size(total)}" if total > 0 else format_size(
-        downloaded)
+      size_str = (
+        f"{format_size(downloaded)} / {format_size(total)}" if total > 0
+        else format_size(downloaded)
+      )
 
-      progress_text = f"下載中: {percentage:.1f}% | {size_str} | 速度: {speed_str} | 剩餘: {eta_str}"
+      progress_text = (
+        f"下載中: {percentage:.1f}% | {size_str} | 速度: {speed_str} | 剩餘: {eta_str}"
+      )
       self.progress_label.config(text=progress_text)
       self.status_label.config(text=f"下載中... {percentage:.1f}%")
 
@@ -359,7 +376,7 @@ class VideoDownloaderUI:
       self.progress_label.config(text="處理中...")
       self.status_label.config(text="後處理中...")
 
-  def _handle_complete(self, file_path: str, info: dict):
+  def _handle_complete(self, file_path: str):
     """處理下載完成"""
     self.log_message(f"✓ 下載完成: {file_path}", "success")
 
@@ -437,7 +454,7 @@ class VideoDownloaderUI:
 
     # 自動轉換檔名
     auto_convert = tk.BooleanVar(
-      value=self.config.get("auto_convert_filename", True))
+        value=self.config.get("auto_convert_filename", True))
     ttk.Checkbutton(
         frame,
         text="自動將檔名轉換為繁體中文",
@@ -446,7 +463,7 @@ class VideoDownloaderUI:
 
     # 自動開啟目錄
     auto_open = tk.BooleanVar(
-      value=self.config.get("auto_open_directory", True))
+        value=self.config.get("auto_open_directory", True))
     ttk.Checkbutton(
         frame,
         text="下載完成後自動開啟目錄",
@@ -464,9 +481,8 @@ class VideoDownloaderUI:
 
   def _on_closing(self):
     """視窗關閉處理"""
-    if self.current_task:
-      if messagebox.askyesno("確認", "下載進行中，確定要關閉程式嗎？"):
-        self.download_manager.cancel_all()
-        self.master.destroy()
-    else:
+    if self.current_task and messagebox.askyesno("確認", "下載進行中，確定要關閉程式嗎？"):
+      self.download_manager.cancel_all()
+      self.master.destroy()
+    elif not self.current_task:
       self.master.destroy()
