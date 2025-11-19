@@ -1,6 +1,5 @@
 """
-常數定義檔
-包含所有硬編碼的字串、設定值與常數
+常數定義
 """
 
 # 應用程式資訊
@@ -36,7 +35,6 @@ AUDIO_FORMATS = {
 # 檔案路徑
 DEFAULT_DOWNLOAD_PATH = "./downloads"
 CONFIG_FILE = "config.json"
-HISTORY_FILE = "download_history.json"
 LOG_FILE = "downloader.log"
 
 # 錯誤訊息
@@ -57,6 +55,10 @@ SUCCESS_MESSAGES = {
     "cancel_success": "下載已取消",
 }
 
+# 下載選項
+DOWNLOAD_TIMEOUT = 300
+RETRY_ATTEMPTS = 3
+
 # 日誌等級
 LOG_LEVEL = "INFO"
 
@@ -64,26 +66,5 @@ LOG_LEVEL = "INFO"
 OPENCC_CONFIG = "s2t.json"
 OPENCC_FALLBACK_CONFIGS = ["s2t", "s2tw", "s2twp"]
 
-# 下載選項
-MAX_CONCURRENT_DOWNLOADS = 3
-DOWNLOAD_TIMEOUT = 300  # 秒
-RETRY_ATTEMPTS = 3
-
-# UI 顏色主題
-THEMES = {
-    "light": {
-        "bg": "#ffffff",
-        "fg": "#000000",
-        "button_bg": "#e0e0e0",
-        "entry_bg": "#ffffff",
-    },
-    "dark": {
-        "bg": "#2b2b2b",
-        "fg": "#ffffff",
-        "button_bg": "#404040",
-        "entry_bg": "#3c3c3c",
-    }
-}
-
-# 正規表達式模式
+# URL 驗證
 URL_PATTERN = r'https?://(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&/=]*)'

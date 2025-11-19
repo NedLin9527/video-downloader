@@ -1,17 +1,16 @@
 """
 優化版影片下載器 - 主程式入口
-Author: Your Name
+Author: Ned Lin
 Version: 2.0.0
 """
 
-import tkinter as tk
-from ui import VideoDownloaderUI
+import sys
+import os
 
-def main():
-    """主程式入口"""
-    root = tk.Tk()
-    app = VideoDownloaderUI(root)
-    root.mainloop()
+# 添加 src 目錄到 Python 路徑
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+import src.main as src_main
 
 if __name__ == "__main__":
-    main()
+    src_main.main()

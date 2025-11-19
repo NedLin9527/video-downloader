@@ -31,11 +31,8 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          # 視需要加入 --icon=assets/app.ico、--name、--add-data 等
-          pyinstaller main.py `
-            --onefile `
-            --windowed `
-            --name video-downloader
+          # 使用 spec 檔案建置，更好地控制模組包含
+          pyinstaller video-downloader.spec
 
       - name: Archive artifact
         uses: actions/upload-artifact@v4
