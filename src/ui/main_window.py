@@ -23,6 +23,7 @@ from core.constants import (
 )
 from core.config import ConfigManager
 from core.downloader import DownloadManager, DownloadTask
+from core.batch_downloader import BatchDownloadManager, TaskStatus
 from utils import (
     Logger, get_timestamp, format_size, format_time,
     open_directory, is_ffmpeg_installed
@@ -40,11 +41,18 @@ class VideoDownloaderUI:
         # 初始化管理器
         self.config = ConfigManager()
         self.download_manager = DownloadManager()
+        self.batch_manager = BatchDownloadManager(max_retries=3)
         self.logger = Logger()
         self.message_queue = queue.Queue()
 
         # 當前任務
         self.current_task: Optional[DownloadTask] = None
+        self.is_batch_mode = False
+
+        # 設定批次下載回調
+        self.batch_manager.progress_callback = self._on_batch_progress
+        self.batch_manager.task_complete_callback = self._on_batch_task_complete
+        self.batch_manager.batch_complete_callback = self._on_batch_complete
 
         # 建立 UI
         self._create_widgets()
@@ -88,11 +96,40 @@ class VideoDownloaderUI:
         url_frame = ttk.LabelFrame(parent, text="影片/音樂 URL", padding="5")
         url_frame.pack(fill=tk.X, pady=5)
 
-        self.url_entry = ttk.Entry(url_frame, width=URL_ENTRY_WIDTH)
+        # 模式切換
+        mode_frame = ttk.Frame(url_frame)
+        mode_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        self.mode_var = tk.StringVar(value="single")
+        ttk.Radiobutton(mode_frame, text="單一下載", variable=self.mode_var, 
+                       value="single", command=self._toggle_mode).pack(side=tk.LEFT)
+        ttk.Radiobutton(mode_frame, text="批次下載", variable=self.mode_var, 
+                       value="batch", command=self._toggle_mode).pack(side=tk.LEFT, padx=(10, 0))
+
+        # URL 輸入區
+        input_frame = ttk.Frame(url_frame)
+        input_frame.pack(fill=tk.X)
+        
+        self.url_entry = ttk.Entry(input_frame, width=URL_ENTRY_WIDTH)
         self.url_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
 
-        paste_btn = ttk.Button(url_frame, text="貼上", command=self._paste_url)
+        paste_btn = ttk.Button(input_frame, text="貼上", command=self._paste_url)
         paste_btn.pack(side=tk.LEFT)
+        
+        # 批次輸入區（初始隱藏）
+        self.batch_frame = ttk.Frame(url_frame)
+        
+        ttk.Label(self.batch_frame, text="批次 URL（逗號分隔）:").pack(anchor=tk.W)
+        self.batch_text = scrolledtext.ScrolledText(self.batch_frame, height=4, wrap=tk.WORD)
+        self.batch_text.pack(fill=tk.X, pady=5)
+        
+        batch_btn_frame = ttk.Frame(self.batch_frame)
+        batch_btn_frame.pack(fill=tk.X)
+        
+        ttk.Button(batch_btn_frame, text="載入批次清單", 
+                  command=self._load_batch_urls).pack(side=tk.LEFT)
+        ttk.Button(batch_btn_frame, text="清除", 
+                  command=lambda: self.batch_text.delete(1.0, tk.END)).pack(side=tk.LEFT, padx=(5, 0))
 
     def _create_format_section(self, parent):
         """建立格式選擇區"""
@@ -163,6 +200,16 @@ class VideoDownloaderUI:
             state=tk.DISABLED
         )
         self.cancel_btn.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        
+        # 批次控制按鈕
+        self.batch_control_frame = ttk.Frame(button_frame)
+        
+        self.clear_queue_btn = ttk.Button(
+            self.batch_control_frame,
+            text="清除佇列",
+            command=self._clear_batch_queue
+        )
+        self.clear_queue_btn.pack(side=tk.LEFT, padx=5)
 
         settings_btn = ttk.Button(
             button_frame,
@@ -185,6 +232,10 @@ class VideoDownloaderUI:
 
         self.progress_label = ttk.Label(progress_frame, text="")
         self.progress_label.pack(pady=5)
+        
+        # 批次進度資訊
+        self.batch_progress_label = ttk.Label(progress_frame, text="")
+        self.batch_progress_label.pack(pady=2)
 
     def _create_message_section(self, parent):
         """建立訊息顯示區"""
@@ -218,6 +269,37 @@ class VideoDownloaderUI:
 
         # 視窗關閉事件
         self.master.protocol("WM_DELETE_WINDOW", self._on_closing)
+    
+    def _toggle_mode(self):
+        """切換單一/批次模式"""
+        is_batch = self.mode_var.get() == "batch"
+        
+        if is_batch:
+            self.batch_frame.pack(fill=tk.X, pady=(5, 0))
+            self.batch_control_frame.pack(side=tk.LEFT, padx=5)
+            self.url_entry.config(state=tk.DISABLED)
+        else:
+            self.batch_frame.pack_forget()
+            self.batch_control_frame.pack_forget()
+            self.url_entry.config(state=tk.NORMAL)
+            
+        self.is_batch_mode = is_batch
+    
+    def _load_batch_urls(self):
+        """載入批次 URL 清單"""
+        try:
+            clipboard = self.master.clipboard_get()
+            self.batch_text.delete(1.0, tk.END)
+            self.batch_text.insert(1.0, clipboard)
+        except tk.TclError:
+            pass
+    
+    def _clear_batch_queue(self):
+        """清除批次佇列"""
+        if messagebox.askyesno("確認", "確定要清除所有批次任務嗎？"):
+            self.batch_manager.clear_tasks()
+            self.log_message("已清除批次佇列")
+            self._update_batch_progress()
 
     def _check_ffmpeg(self):
         """檢查 FFmpeg 是否安裝"""
@@ -249,41 +331,70 @@ class VideoDownloaderUI:
 
     def _start_download(self, download_type: str):
         """開始下載"""
-        if self.current_task:
+        if self.current_task or self.batch_manager.is_running:
             messagebox.showinfo("提示", "目前已有下載任務進行中")
             return
 
-        url = self.url_entry.get().strip()
-        if not url:
-            messagebox.showerror("錯誤", ERROR_MESSAGES['empty_url'])
-            return
-
         output_path = self.path_entry.get().strip()
-
-        if download_type == DOWNLOAD_TYPE_VIDEO:
-            format_option = self.video_format_var.get()
+        
+        if self.is_batch_mode:
+            # 批次下載
+            urls_text = self.batch_text.get(1.0, tk.END).strip()
+            if not urls_text:
+                messagebox.showerror("錯誤", "請輸入批次 URL 清單")
+                return
+                
+            if download_type == DOWNLOAD_TYPE_VIDEO:
+                format_option = self.video_format_var.get()
+            else:
+                format_option = self.audio_format_var.get()
+                
+            # 新增批次任務
+            count = self.batch_manager.add_urls_from_text(
+                urls_text, download_type, format_option, output_path
+            )
+            
+            if count == 0:
+                messagebox.showerror("錯誤", "未找到有效的 URL")
+                return
+                
+            # 開始批次下載
+            self._set_downloading_state(True)
+            self.batch_manager.start_batch_download()
+            
+            self.log_message(f"開始批次下載 {count} 個{'影片' if download_type == DOWNLOAD_TYPE_VIDEO else '音樂'}")
+            
         else:
-            format_option = self.audio_format_var.get()
+            # 單一下載
+            url = self.url_entry.get().strip()
+            if not url:
+                messagebox.showerror("錯誤", ERROR_MESSAGES['empty_url'])
+                return
 
-        # 更新 UI 狀態
-        self._set_downloading_state(True)
+            if download_type == DOWNLOAD_TYPE_VIDEO:
+                format_option = self.video_format_var.get()
+            else:
+                format_option = self.audio_format_var.get()
 
-        # 建立下載任務
-        self.current_task = self.download_manager.create_task(
-            url=url,
-            download_type=download_type,
-            output_path=output_path,
-            format_option=format_option,
-            progress_callback=self._on_progress,
-            complete_callback=self._on_complete,
-            error_callback=self._on_error,
-        )
+            # 更新 UI 狀態
+            self._set_downloading_state(True)
 
-        # 在新執行緒中執行
-        threading.Thread(target=self._execute_download, daemon=True).start()
+            # 建立下載任務
+            self.current_task = self.download_manager.create_task(
+                url=url,
+                download_type=download_type,
+                output_path=output_path,
+                format_option=format_option,
+                progress_callback=self._on_progress,
+                complete_callback=self._on_complete,
+                error_callback=self._on_error,
+            )
 
-        self.log_message(
-            f"開始下載 {'影片' if download_type == DOWNLOAD_TYPE_VIDEO else '音樂'}: {url}")
+            # 在新執行緒中執行
+            threading.Thread(target=self._execute_download, daemon=True).start()
+
+            self.log_message(
+                f"開始下載 {'影片' if download_type == DOWNLOAD_TYPE_VIDEO else '音樂'}: {url}")
 
     def _execute_download(self):
         """執行下載（在背景執行緒）"""
@@ -296,7 +407,11 @@ class VideoDownloaderUI:
 
     def _cancel_download(self):
         """取消下載"""
-        if self.current_task and messagebox.askyesno("確認", "確定要取消下載嗎？"):
+        if self.batch_manager.is_running:
+            if messagebox.askyesno("確認", "確定要取消批次下載嗎？"):
+                self.batch_manager.stop_batch_download()
+                self.log_message("使用者取消批次下載")
+        elif self.current_task and messagebox.askyesno("確認", "確定要取消下載嗎？"):
             self.current_task.cancel()
             self.log_message("使用者取消下載")
 
@@ -311,6 +426,18 @@ class VideoDownloaderUI:
     def _on_error(self, error_msg: str):
         """錯誤回調"""
         self.message_queue.put(('error', error_msg))
+    
+    def _on_batch_progress(self, data: dict):
+        """批次進度回調"""
+        self.message_queue.put(('batch_progress', data))
+    
+    def _on_batch_task_complete(self, task_info, summary: dict):
+        """批次任務完成回調"""
+        self.message_queue.put(('batch_task_complete', (task_info, summary)))
+    
+    def _on_batch_complete(self, summary: dict):
+        """批次完成回調"""
+        self.message_queue.put(('batch_complete', summary))
 
     def _process_message_queue(self):
         """處理訊息佇列（在主執行緒）"""
@@ -326,6 +453,13 @@ class VideoDownloaderUI:
                     self._handle_error(data)
                 elif msg_type == 'state':
                     self._set_downloading_state(data)
+                elif msg_type == 'batch_progress':
+                    self._update_batch_progress(data)
+                elif msg_type == 'batch_task_complete':
+                    task_info, summary = data
+                    self._handle_batch_task_complete(task_info, summary)
+                elif msg_type == 'batch_complete':
+                    self._handle_batch_complete(data)
         except queue.Empty:
             pass
 
@@ -392,6 +526,53 @@ class VideoDownloaderUI:
         self.progress_bar['value'] = 0
         self.progress_label.config(text="")
         self.status_label.config(text="發生錯誤")
+    
+    def _update_batch_progress(self, data: dict = None):
+        """更新批次進度"""
+        if data:
+            # 更新單一任務進度
+            self._update_progress(data)
+            
+        # 更新批次摘要
+        summary = self.batch_manager.get_task_summary()
+        if summary['total'] > 0:
+            progress_text = (
+                f"批次進度: {summary['current_index']}/{summary['total']} | "
+                f"完成: {summary['completed']} | 失敗: {summary['failed']} | "
+                f"等待: {summary['pending']}"
+            )
+            self.batch_progress_label.config(text=progress_text)
+        else:
+            self.batch_progress_label.config(text="")
+    
+    def _handle_batch_task_complete(self, task_info, summary: dict):
+        """處理批次任務完成"""
+        if task_info.status == TaskStatus.COMPLETED:
+            self.log_message(f"✓ 批次任務完成: {task_info.downloaded_file}", "success")
+        elif task_info.status == TaskStatus.FAILED:
+            self.log_message(f"✗ 批次任務失敗: {task_info.url} - {task_info.error_message}", "error")
+            
+        self._update_batch_progress()
+    
+    def _handle_batch_complete(self, summary: dict):
+        """處理批次完成"""
+        self.log_message(
+            f"✓ 批次下載完成！總計: {summary['total']}, "
+            f"成功: {summary['completed']}, 失敗: {summary['failed']}", 
+            "success"
+        )
+        
+        self.progress_bar['value'] = 0
+        self.progress_label.config(text="")
+        self.batch_progress_label.config(text="")
+        self.status_label.config(text="就緒")
+        
+        self._set_downloading_state(False)
+        
+        # 詢問是否開啟目錄
+        if summary['completed'] > 0 and self.config.get("auto_open_directory", True):
+            if messagebox.askyesno("批次下載完成", "是否開啟下載目錄？"):
+                open_directory(self.path_entry.get().strip())
 
     def _set_downloading_state(self, is_downloading: bool):
         """設定下載中狀態"""
@@ -473,8 +654,10 @@ class VideoDownloaderUI:
 
     def _on_closing(self):
         """視窗關閉處理"""
-        if self.current_task and messagebox.askyesno("確認", "下載進行中，確定要關閉程式嗎？"):
+        if (self.current_task or self.batch_manager.is_running) and \
+           messagebox.askyesno("確認", "下載進行中，確定要關閉程式嗎？"):
             self.download_manager.cancel_all()
+            self.batch_manager.stop_batch_download()
             self.master.destroy()
-        elif not self.current_task:
+        elif not self.current_task and not self.batch_manager.is_running:
             self.master.destroy()
