@@ -164,6 +164,15 @@ https://example3.com
 ```
 或使用「載入批次清單」按鈕從剪貼簿貼上。
 
+**從播放清單產生批次清單**：使用 yt-dlp 指令取得播放清單中所有影片的 URL
+```bash
+yt-dlp --flat-playlist --print "https://www.youtube.com/watch?v=%(id)s," "播放清單URL"
+```
+範例：
+```bash
+yt-dlp --flat-playlist --print "https://www.youtube.com/watch?v=%(id)s," "https://www.youtube.com/playlist?list=PLBakWosU0sfjzq5MHaM7L_y7RzT6tGfps"
+```
+
 ### Q: 支援哪些平台？
 **A**: 支援所有 yt-dlp 支援的平台，包括但不限於：
 - YouTube
