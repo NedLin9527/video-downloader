@@ -3,8 +3,8 @@
 """
 
 # 應用程式資訊
-APP_TITLE = "影片下載器 v2.0"
-APP_VERSION = "2.0.0"
+APP_TITLE = "影片下載器 v2.1"
+APP_VERSION = "2.1.0"
 
 # UI 相關常數
 WINDOW_WIDTH = 700

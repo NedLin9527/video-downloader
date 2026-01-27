@@ -163,6 +163,12 @@ class DownloadTask:
         if not self.downloaded_file or not os.path.exists(self.downloaded_file):
             return
 
+        # 檢查是否啟用自動轉換
+        from core.config import ConfigManager
+        config = ConfigManager()
+        if not config.get("auto_convert_filename", True):
+            return
+
         try:
             base_name = os.path.basename(self.downloaded_file)
             converted_name = convert_to_traditional_chinese(base_name)

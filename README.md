@@ -13,6 +13,7 @@
 - ✅ **錯誤處理**: 完善的錯誤處理與日誌記錄
 - ✅ **設定儲存**: 保存使用者偏好設定
 - ✅ **跨平台支援**: Windows、macOS、Linux
+- 🕸️ **Web 版介面 (Bootstrap 5)**: 不開桌面 UI 也可透過瀏覽器下載
 
 ## 📦 安裝
 
@@ -31,6 +32,13 @@ cd video-downloader
 2. 安裝 Python 套件
 ```bash
 pip install -r requirements.txt
+```
+
+3. （選擇性）設定下載目錄
+
+在專案根目錄建立 `.env`，指定 Web 版下載儲存路徑（預設為 `./downloads`）
+```bash
+DOWNLOAD_DIR=/absolute/path/to/downloads
 ```
 
 3. 安裝 FFmpeg
@@ -60,6 +68,16 @@ sudo apt install ffmpeg
 ```bash
 python main.py
 ```
+
+### 啟動 Web 版介面（Bootstrap 5）
+```bash
+uvicorn src.web.app:app --host 0.0.0.0 --port 8000
+# 或
+python -m src.web.app
+```
+
+- 開啟瀏覽器訪問 `http://127.0.0.1:8000`
+- 下載路徑會依 `.env` 的 `DOWNLOAD_DIR` 設定，自動建立目錄
 
 ### 基本操作
 

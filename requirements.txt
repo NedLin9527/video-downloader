@@ -1,2 +1,6 @@
 yt-dlp>=2025.12.8
 opencc-python-reimplemented>=0.1.7
+fastapi>=0.115.5
+uvicorn[standard]>=0.32.0
+python-dotenv>=1.0.1
+Jinja2>=3.1.4

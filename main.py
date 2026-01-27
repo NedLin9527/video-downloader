@@ -1,6 +1,6 @@
 """
 優化版影片下載器 - 主程式入口
-Author: Your Name
+Author: Ned Lin
 Version: 2.0.0
 """
 

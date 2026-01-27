@@ -1,111 +1,175 @@
-# 批次下載使用範例
+# 批次下載詳細使用指南
 
-## 基本用法
+## 📋 批次下載功能概述
+
+批次下載功能允許您同時下載多個影片或音樂，支援自動重試和進度追蹤。
+
+## 🚀 使用方法
 
 ### 1. 準備 URL 清單
 
-將多個 URL 用逗號分隔，可以跨行輸入：
-
+#### 方法一：手動輸入
+在批次下載文字區域中輸入多個 URL，使用逗號分隔：
 ```
-https://www.youtube.com/watch?v=dQw4w9WgXcQ,
-https://www.youtube.com/watch?v=oHg5SJYRHA0,
-https://www.bilibili.com/video/BV1xx411c7mu,
-https://www.youtube.com/watch?v=9bZkp7q19f0
-```
-
-### 2. 程式化使用
-
-```python
-from src.core.batch_downloader import BatchDownloadManager
-from src.core.constants import DOWNLOAD_TYPE_AUDIO
-
-# 創建批次下載管理器
-batch_manager = BatchDownloadManager(max_retries=3)
-
-# 設定回調函數
-def on_progress(data):
-    task_info = data['task_info']
-    summary = data['batch_summary']
-    print(f"進度: {task_info.url} - {data.get('percentage', 0):.1f}%")
-    print(f"批次: {summary['current_index']}/{summary['total']}")
-
-def on_task_complete(task_info, summary):
-    if task_info.status.value == "completed":
-        print(f"✓ 完成: {task_info.downloaded_file}")
-    else:
-        print(f"✗ 失敗: {task_info.url}")
-
-def on_batch_complete(summary):
-    print(f"批次完成！成功: {summary['completed']}, 失敗: {summary['failed']}")
-
-# 設定回調
-batch_manager.progress_callback = on_progress
-batch_manager.task_complete_callback = on_task_complete
-batch_manager.batch_complete_callback = on_batch_complete
-
-# 新增批次任務
-urls_text = """
 https://www.youtube.com/watch?v=example1,
+https://www.youtube.com/watch?v=example2,
+https://www.bilibili.com/video/example3
+```
+
+#### 方法二：從播放清單生成
+使用 yt-dlp 命令列工具生成播放清單中所有影片的 URL：
+
+**YouTube 播放清單：**
+```bash
+yt-dlp --flat-playlist --print "https://www.youtube.com/watch?v=%(id)s," "播放清單URL"
+```
+
+**範例：**
+```bash
+yt-dlp --flat-playlist --print "https://www.youtube.com/watch?v=%(id)s," "https://www.youtube.com/playlist?list=PLBakWosU0sfjzq5MHaM7L_y7RzT6tGfps"
+```
+
+**Bilibili 合集：**
+```bash
+yt-dlp --flat-playlist --print "https://www.bilibili.com/video/%(id)s," "合集URL"
+```
+
+#### 方法三：使用載入功能
+1. 將 URL 清單複製到剪貼簿
+2. 點擊「載入批次清單」按鈕自動貼上
+
+### 2. 設定下載選項
+
+- **格式選擇**：所有 URL 將使用相同的格式設定
+- **儲存路徑**：確保有足夠的磁碟空間
+- **繁簡轉換**：在設定中啟用自動檔名轉換
+
+### 3. 開始批次下載
+
+1. 點擊「下載影片」或「下載音樂」
+2. 系統會顯示批次進度資訊
+3. 可隨時點擊「取消下載」中止所有任務
+
+## 📊 進度監控
+
+### 批次進度顯示
+- **當前任務**：顯示正在下載的項目
+- **整體進度**：完成數/總數
+- **狀態統計**：成功、失敗、等待中的任務數量
+
+### 個別任務狀態
+- ✅ **已完成**：下載成功
+- ❌ **失敗**：達到重試上限後仍失敗
+- ⏳ **等待中**：排隊等待下載
+- 🔄 **重試中**：自動重試失敗的任務
+
+## 🔄 自動重試機制
+
+### 重試條件
+- 網路連線問題
+- 暫時性伺服器錯誤
+- 下載中斷
+
+### 重試設定
+- **最大重試次數**：3 次
+- **重試間隔**：立即重試
+- **保留設定**：重試時保持原始格式和檔名轉換設定
+
+### 不會重試的情況
+- URL 無效或不支援
+- 影片已被刪除或私人
+- 磁碟空間不足
+- 使用者手動取消
+
+## 🛠️ 佇列管理
+
+### 清除佇列
+- 點擊「清除佇列」按鈕
+- 會停止所有進行中的下載
+- 清空所有等待中的任務
+
+### 任務優先順序
+- 按照輸入順序依序處理
+- 重試任務會重新加入佇列末端
+- 無法調整任務順序（未來版本可能支援）
+
+## 📝 日誌記錄
+
+### 批次下載日誌
+所有批次操作都會記錄在 `downloader.log` 中：
+- 批次開始時間和任務數量
+- 每個任務的開始、完成、失敗記錄
+- 重試次數和最終結果
+- 檔名轉換記錄
+
+### 日誌格式範例
+```
+[2025-01-XX 10:30:00] INFO - 開始批次下載 5 個音樂
+[2025-01-XX 10:30:05] INFO - 任務完成: https://example.com -> /path/to/file.mp3
+[2025-01-XX 10:30:10] INFO - 任務重試 (1/3): https://example2.com
+[2025-01-XX 10:30:15] ERROR - 任務最終失敗: https://invalid-url.com
+[2025-01-XX 10:35:00] INFO - 批次下載完成！總計: 5, 成功: 4, 失敗: 1
+```
+
+## ⚠️ 注意事項
+
+### 效能考量
+- 批次下載為序列處理，一次只下載一個檔案
+- 大量任務可能需要較長時間
+- 建議分批處理超過 50 個 URL 的清單
+
+### 錯誤處理
+- 個別任務失敗不會影響其他任務
+- 系統會自動跳過無效 URL
+- 重複 URL 會被重複處理（未來版本可能去重）
+
+### 磁碟空間
+- 建議預留足夠空間（至少 2GB）
+- 系統會嘗試估算所需空間
+- 空間不足時會跳過該任務
+
+## 🔧 進階技巧
+
+### 批次清單準備
+1. **Excel/Google Sheets**：在試算表中整理 URL，然後複製貼上
+2. **文字編輯器**：使用尋找取代功能批次加入逗號
+3. **程式腳本**：編寫腳本自動生成 URL 清單
+
+### 格式化 URL 清單
+```python
+# Python 腳本範例：清理和格式化 URL 清單
+urls = """
+https://www.youtube.com/watch?v=example1
 https://www.youtube.com/watch?v=example2
+https://www.youtube.com/watch?v=example3
 """
 
-count = batch_manager.add_urls_from_text(
-    urls_text, 
-    DOWNLOAD_TYPE_AUDIO, 
-    "MP3 (192kbps)", 
-    "./downloads"
-)
-
-# 開始下載
-if batch_manager.start_batch_download():
-    print(f"開始批次下載 {count} 個任務")
-    
-    # 等待完成
-    while batch_manager.is_running:
-        time.sleep(1)
+formatted = ',\\n'.join([url.strip() for url in urls.strip().split('\\n') if url.strip()])
+print(formatted)
 ```
 
-## 重試機制
-
-- 每個失敗的任務會自動重試最多 3 次
-- 重試時會保留原始的格式設定和檔名轉換設定
-- 最終失敗的任務會在日誌中標記，不影響其他任務
-
-## 檔名轉換
-
-批次下載會自動應用檔名簡轉繁功能：
-
-- 下載完成後自動將簡體中文檔名轉為繁體
-- 避免檔名衝突（自動加數字後綴）
-- 保留原始副檔名
-
-## 進度監控
-
-批次下載提供詳細的進度資訊：
-
-```python
-summary = batch_manager.get_task_summary()
-print(f"總計: {summary['total']}")
-print(f"完成: {summary['completed']}")
-print(f"失敗: {summary['failed']}")
-print(f"等待: {summary['pending']}")
-print(f"下載中: {summary['downloading']}")
-print(f"當前: {summary['current_index']}")
+### 測試批次功能
+使用提供的 `test_batch.py` 腳本測試批次下載功能：
+```bash
+python test_batch.py
 ```
 
-## 錯誤處理
+## 🐛 常見問題
 
-常見錯誤及處理方式：
+### Q: 批次下載很慢怎麼辦？
+**A**: 批次下載是序列處理，這是為了避免對伺服器造成過大負擔。可以：
+- 分批處理大量 URL
+- 選擇較低解析度以加快速度
+- 確保網路連線穩定
 
-1. **無效 URL**: 會跳過並記錄在日誌中
-2. **網路錯誤**: 會自動重試
-3. **格式不支援**: 會跳過該任務
-4. **磁碟空間不足**: 會停止下載並報錯
+### Q: 部分任務失敗了怎麼辦？
+**A**: 系統會自動重試失敗的任務。如果最終仍失敗：
+- 檢查 URL 是否有效
+- 查看日誌檔案了解失敗原因
+- 手動重新下載失敗的項目
 
-## 最佳實踐
+### Q: 如何暫停批次下載？
+**A**: 目前不支援暫停功能，只能完全取消。未來版本可能會加入暫停/恢復功能。
 
-1. **URL 準備**: 確保 URL 格式正確，避免包含特殊字符
-2. **批次大小**: 建議每批不超過 50 個 URL，避免記憶體過度使用
-3. **網路狀況**: 在網路不穩定時可以增加重試次數
-4. **儲存空間**: 確保有足夠的磁碟空間
-5. **格式選擇**: 音訊下載通常比影片下載更穩定快速
+### Q: 可以同時執行多個批次下載嗎？
+**A**: 目前不支援，同一時間只能執行一個批次下載任務。
