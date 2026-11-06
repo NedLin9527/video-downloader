@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {"title": "影片下載器：系統架構", "locale": "zh-TW", "output": ".archify/architecture-video-downloader-20261106-211353/video-downloader.html", "quality_profile": "showcase", "repository": {"url": "https://github.com/NedLin9527/video-downloader.git", "revision": "bfe999787d85606164032eca65890c6daf781da8"}},
+  "components": [
+    {"id":"browser","type":"frontend","label":"Web 瀏覽器","sublabel":"表單與狀態輪詢","pos":[40,60],"size":[150,65],"sources":[{"path":"src/web/templates/index.html","line":130,"end_line":176}]},
+    {"id":"web","type":"backend","label":"FastAPI Web 服務","sublabel":"API、驗證與背景執行緒","pos":[300,60],"size":[190,65],"sources":[{"path":"src/web/app.py","line":89,"end_line":122},{"path":"src/web/app.py","line":166,"end_line":179},{"path":"src/web/app.py","line":232,"end_line":268}]},
+    {"id":"state","type":"database","label":"任務狀態","sublabel":"程序內記憶體","pos":[310,190],"size":[170,65],"sources":[{"path":"src/web/app.py","line":92,"end_line":121},{"path":"src/web/app.py","line":221,"end_line":226}]},
+    {"id":"desktop","type":"frontend","label":"Tkinter 桌面介面","sublabel":"單筆、批次與取消","pos":[40,390],"size":[170,65],"sources":[{"path":"src/main.py","line":9,"end_line":17},{"path":"src/ui/main_window.py","line":332,"end_line":405},{"path":"src/ui/main_window.py","line":408,"end_line":416}]},
+    {"id":"batch","type":"backend","label":"批次管理器","sublabel":"佇列、背景處理及重試","pos":[300,390],"size":[190,65],"sources":[{"path":"src/core/batch_downloader.py","line":37,"end_line":85},{"path":"src/core/batch_downloader.py","line":130,"end_line":180}]},
+    {"id":"core","type":"backend","label":"下載核心","sublabel":"DownloadManager / Task","pos":[610,225],"size":[190,65],"sources":[{"path":"src/core/downloader.py","line":87,"end_line":146},{"path":"src/core/downloader.py","line":198,"end_line":241}]},
+    {"id":"media","type":"external","label":"影音來源網站","sublabel":"yt-dlp 擷取與下載","pos":[920,80],"size":[190,65],"sources":[{"path":"src/core/downloader.py","line":121,"end_line":140}]},
+    {"id":"files","type":"database","label":"本機下載檔案","sublabel":"輸出目錄與檔名轉換","pos":[920,225],"size":[190,65],"sources":[{"path":"src/core/downloader.py","line":87,"end_line":116},{"path":"src/core/downloader.py","line":121,"end_line":141},{"path":"src/core/downloader.py","line":161,"end_line":191}]},
+    {"id":"config","type":"database","label":"本機設定","sublabel":"config.json / .env","pos":[610,390],"size":[190,65],"sources":[{"path":"src/core/config.py","line":19,"end_line":41},{"path":"src/web/app.py","line":38,"end_line":46},{"path":"src/core/downloader.py","line":161,"end_line":170}]}
+  ],
+  "connections": [
+    {"from":"browser","to":"web","label":"HTTP API","variant":"emphasis"},
+    {"from":"web","to":"state","label":"讀寫狀態"},
+    {"from":"web","to":"core","label":"建立並執行"},
+    {"from":"desktop","to":"batch","label":"批次模式"},
+    {"from":"desktop","to":"core","label":"單筆模式"},
+    {"from":"batch","to":"core","label":"逐項執行"},
+    {"from":"core","to":"media","label":"擷取與下載"},
+    {"from":"core","to":"files","label":"輸出與重新命名"},
+    {"from":"core","to":"config","label":"讀取設定"}
+  ],
+  "cards": [
+    {"dot":"cyan","title":"API 與資料流","items":["POST /api/download 建立任務；GET /api/status/{task_id} 查詢進度。","Web 為每個任務啟動背景執行緒；桌面批次以單一工作執行緒逐項處理。"]},
+    {"dot":"amber","title":"安全與部署","items":["已提交版本的直接啟動入口監聽 0.0.0.0；圖中程式碼未顯示驗證或授權機制。","正式部署拓撲、網路隔離及存取政策缺乏證據，須另行確認。"]},
+    {"dot":"rose","title":"限制與依賴","items":["Web 任務狀態保存在程序記憶體，重啟後不保留；多程序間不共享。","yt-dlp 下載；音訊轉換及部分合併依賴 FFmpeg；OpenCC 可用時轉換檔名。","此圖以已提交版本為準；工作目錄另有未提交 Web 變更。"]}
+  ]
+}

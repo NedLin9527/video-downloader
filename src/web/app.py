@@ -1,5 +1,5 @@
 """
-Bootstrap 5 Web UI，提供影片/音訊下載服務。
+響應式 Web UI，提供影片/音訊下載服務。
 保留原有桌面 UI，同時新增 FastAPI 介面。
 """
 
@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, field_validator
 
@@ -51,6 +52,11 @@ app = FastAPI(
     title="Video Downloader Web UI",
     description="基於 FastAPI 的影片/音訊下載服務，使用 yt-dlp",
     version="2.2.0",
+)
+app.mount(
+    "/static",
+    StaticFiles(directory=str(Path(__file__).resolve().parent / "static")),
+    name="static",
 )
 
 
@@ -231,7 +237,7 @@ service = WebDownloadService(DOWNLOAD_ROOT)
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    """首頁，回傳 Bootstrap 介面"""
+    """首頁，回傳下載工作區"""
     return templates.TemplateResponse(
         "index.html",
         {

@@ -5,7 +5,7 @@
 ## 📋 主要特色
 
 - ✅ **模組化架構**: 清晰的關注點分離，易於維護與擴展
-- ✅ **批次下載**: 支援多個 URL 同時下載，自動重試機制
+- ✅ **批次下載**: 支援多個 URL 依序下載，自動重試機制
 - ✅ **進度追蹤**: 即時顯示下載進度、速度、剩餘時間
 - ✅ **取消功能**: 可隨時中止進行中的下載
 - ✅ **格式選擇**: 支援多種影片解析度與音訊品質
@@ -18,8 +18,9 @@
 ## 📦 安裝
 
 ### 環境需求
-- Python 3.8+
-- FFmpeg（音訊轉換必須）
+- Python 3.11+（新版 yt-dlp 的最低需求）
+- FFmpeg（合併分離的影音串流、音訊轉換必須）
+- Deno 2.3.0+，且 `deno` 必須位於啟動程式的 `PATH` 中（YouTube JavaScript 驗證需要）
 
 ### 安裝步驟
 
@@ -31,8 +32,10 @@ cd video-downloader
 
 2. 安裝 Python 套件
 ```bash
-pip install -r requirements.txt
+python -m pip install --upgrade -r requirements.txt
 ```
+
+請使用啟動本專案的同一個 Python 環境執行安裝。`yt-dlp[default]` 會一併安裝版本相容的 `yt-dlp-ejs`，供 YouTube JavaScript 驗證使用。
 
 3. （選擇性）設定下載目錄
 
@@ -41,7 +44,7 @@ pip install -r requirements.txt
 DOWNLOAD_DIR=/absolute/path/to/downloads
 ```
 
-3. 安裝 FFmpeg
+4. 安裝 FFmpeg
 
 **Windows:**
 ```bash
@@ -61,6 +64,16 @@ brew install ffmpeg
 sudo apt update
 sudo apt install ffmpeg
 ```
+
+5. 安裝 Deno
+
+macOS 可使用：
+```bash
+brew install deno
+deno --version
+```
+
+Windows / Linux 請參考 [Deno 官方安裝說明](https://docs.deno.com/runtime/getting_started/installation/)。安裝後重新啟動終端機或 IDE，確認啟動下載器的環境可以執行 `deno --version`。yt-dlp 預設會啟用 Deno，詳見 [官方 EJS 設定指南](https://github.com/yt-dlp/yt-dlp/wiki/EJS)。
 
 ## 🚀 使用方法
 
@@ -108,6 +121,31 @@ python -m src.web.app
 - `Ctrl+V`: 貼上 URL
 - `Enter`: 開始下載影片
 
+## 🏗️ 系統架構
+
+```mermaid
+flowchart LR
+    Browser[瀏覽器] -->|HTTP：建立任務、查詢狀態| Web[FastAPI Web 服務]
+    Web -->|背景執行緒| Core[下載核心<br/>DownloadManager / DownloadTask]
+    Web --> State[(程序內任務狀態)]
+    Desktop[Tkinter 桌面介面] -->|單筆下載| Core
+    Desktop -->|批次下載| Batch[批次管理器<br/>佇列、背景處理與重試]
+    Batch -->|依序執行| Core
+    Core -->|yt-dlp 擷取與下載| Sites[影音來源網站]
+    Core -->|輸出與重新命名| Files[(本機下載目錄)]
+    Core -->|讀取檔名轉換設定| Config[(config.json)]
+    Desktop -->|讀寫偏好設定| Config
+    Env[.env：DOWNLOAD_DIR] -->|設定 Web 儲存路徑| Web
+    Core -.->|合併或轉換影音| FFmpeg[FFmpeg]
+    Core -.->|選用：檔名繁簡轉換| OpenCC[OpenCC]
+```
+
+[開啟 Archify 互動式架構圖](.archify/architecture-video-downloader-20261106-211353/video-downloader.html)（下載專案後以瀏覽器開啟 HTML）。互動圖依已提交版本 `bfe9997` 繪製；目前工作目錄的 Web 介面可能與該版本不同。
+
+- **資料流程**：Web 版以 `POST /api/download` 建立任務，再以 `GET /api/status/{task_id}` 查詢狀態；桌面版支援單筆及批次下載，批次任務依序處理並在失敗時重試。
+- **儲存方式**：Web 任務狀態保存在程序記憶體，服務重啟後不保留，亦不會在多個程序之間共享。影音檔案寫入本機下載目錄；桌面偏好設定使用 `config.json`。
+- **部署與安全**：上述啟動範例監聽 `0.0.0.0`，目前應用程式未提供登入或授權機制。若要開放網路存取，需先確認部署環境、存取控制與網路隔離方式。
+
 ## 📁 專案結構
 
 ```
@@ -121,6 +159,7 @@ video-downloader/
 │   │   └── constants.py         # 常數定義
 │   ├── ui/
 │   │   └── main_window.py       # 主視窗介面
+│   ├── web/                     # FastAPI、網頁範本與靜態資源
 │   └── utils/                   # 工具模組
 ├── test_batch.py        # 批次下載測試
 ├── requirements.txt     # 套件需求
@@ -157,6 +196,19 @@ video-downloader/
 - 檔名轉換記錄
 
 ## 🐛 常見問題
+
+### Q: YouTube 出現 SABR 警告或 `HTTP Error 403: Forbidden`
+**A**: SABR 警告表示部分客戶端取得的格式缺少直接下載 URL，不一定會導致整個下載失敗；403 則表示影音串流請求被 YouTube 拒絕。過舊的 yt-dlp 或缺少 JavaScript 驗證元件都可能造成可用格式減少或下載失敗。
+
+先在執行本專案的 Python 環境更新 yt-dlp 與配套依賴，並確認 Deno 可用：
+```bash
+python -m pip install --upgrade "yt-dlp[default]"
+deno --version
+```
+
+更新後須停止並重新啟動 Web 服務或桌面程式，讓執行中的程序載入新版本。`GET /api/status/...` 回傳 `200 OK` 只代表任務狀態查詢成功；下載結果請查看回傳內容的 `status` 與 `message`。
+
+若仍失敗，請保留完整的 yt-dlp 警告與錯誤，確認是否另有登入、地區、IP 或 PO Token 限制；僅憑 403 無法判定是哪一種原因。新版問題可依 [yt-dlp 官方更新指引](https://github.com/yt-dlp/yt-dlp#update)評估 nightly 版本。
 
 ### Q: 下載失敗顯示「FFmpeg 未安裝」
 **A**: 請依照安裝步驟安裝 FFmpeg。音訊轉換功能需要 FFmpeg 支援。
