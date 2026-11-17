@@ -37,3 +37,20 @@ Web 任務在下載中 MUST 提供進度百分比與訊息，若有可用資料 
 - **When** 前端輪詢狀態 API
 - **Then** 回應 SHALL 包含 `status`、`progress`、`message`
 - **And** 若有下載速率與剩餘時間則 SHALL 一併提供
+
+### Requirement: Local-only default listener
+Web 啟動入口與文件中的預設啟動方式 MUST 僅監聽本機 loopback 介面。
+
+#### Scenario: Start the Web service with defaults
+- **Given** 使用者以預設方式啟動 Web 服務
+- **When** 服務開始監聽
+- **Then** 服務 SHALL 綁定 `127.0.0.1`
+
+### Requirement: Reject invalid download inputs
+Web API MUST 在建立任務前驗證完整 URL 和下載類型對應的格式；無效輸入 SHALL 回傳 HTTP 422 和明確錯誤。
+
+#### Scenario: Unsupported format is submitted
+- **Given** 下載請求包含與類型不相符的格式
+- **When** 呼叫 `POST /api/download`
+- **Then** API SHALL 回傳 HTTP 422
+- **And** 不建立下載任務

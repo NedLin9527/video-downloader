@@ -5,7 +5,7 @@
 import os
 import platform
 import subprocess
-from utils.logger import Logger
+from src.utils.logger import Logger
 
 
 def open_directory(path: str) -> bool:

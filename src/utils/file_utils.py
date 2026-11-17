@@ -5,8 +5,8 @@
 import re
 import os
 from typing import Optional
-from utils.logger import Logger
-from core.constants import OPENCC_CONFIG, OPENCC_FALLBACK_CONFIGS
+from src.utils.logger import Logger
+from src.core.constants import OPENCC_CONFIG, OPENCC_FALLBACK_CONFIGS
 
 
 def sanitize_filename(filename: str) -> str:

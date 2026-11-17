@@ -4,7 +4,7 @@
 
 import os
 from typing import Optional
-from utils.logger import Logger
+from src.utils.logger import Logger
 
 try:
     import opencc

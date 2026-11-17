@@ -4,15 +4,16 @@
 `video-downloader` 是以 Python 實作的影片/音訊下載工具，提供桌面 UI（Tkinter）與 Web UI（FastAPI）兩種使用方式，核心下載由 `yt-dlp` 執行，並支援檔名繁簡轉換與批次重試。
 
 ## Current Stack
-- Language: Python 3.8+
+- Language: Python 3.11+
 - Core dependency: `yt-dlp`
 - Desktop UI: `tkinter`
 - Web UI/API: `fastapi`, `uvicorn`, `jinja2`
-- Optional filename conversion: `opencc-python-reimplemented`
-- Testing: `pytest`, `unittest`（現況混用）
+- Filename conversion: `opencc-python-reimplemented`
+- Testing: `unittest`（可選用 pytest）
 
 ## Runtime/Environment
-- FFmpeg 為音訊抽取必要依賴。
+- FFmpeg 為音訊抽取及部分影片合併的必要依賴。
+- YouTube JavaScript 驗證需要 Deno；實際可用性取決於來源網站與 yt-dlp。
 - Web 介面下載目錄可由 `.env` 的 `DOWNLOAD_DIR` 指定，未設定時使用 `./downloads`。
 
 ## Repository Conventions

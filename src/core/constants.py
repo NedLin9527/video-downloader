@@ -2,9 +2,11 @@
 常數定義
 """
 
+from src import __version__
+
 # 應用程式資訊
-APP_TITLE = "影片下載器 v2.1"
-APP_VERSION = "2.1.0"
+APP_VERSION = __version__
+APP_TITLE = f"影片下載器 v{APP_VERSION}"
 
 # UI 相關常數
 WINDOW_WIDTH = 700
@@ -65,6 +67,3 @@ LOG_LEVEL = "INFO"
 # OpenCC 設定
 OPENCC_CONFIG = "s2t.json"
 OPENCC_FALLBACK_CONFIGS = ["s2t", "s2tw", "s2twp"]
-
-# URL 驗證
-URL_PATTERN = r'https?://(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&/=]*)'

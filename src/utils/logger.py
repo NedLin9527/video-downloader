@@ -3,7 +3,7 @@
 """
 
 import logging
-from core.constants import LOG_FILE, LOG_LEVEL
+from src.core.constants import LOG_FILE, LOG_LEVEL
 
 
 class Logger:

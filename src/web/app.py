@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import os
-import sys
 import threading
 import uuid
 from pathlib import Path
@@ -17,14 +16,12 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
-# 確保 src/ 在 sys.path 中，讓 core/utils 模組可被匯入
 SRC_ROOT = Path(__file__).resolve().parents[1]
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
 
-from core.constants import (  # noqa: E402
+from src import __version__
+from src.core.constants import (
     AUDIO_FORMATS,
     DEFAULT_DOWNLOAD_PATH,
     DOWNLOAD_TYPE_AUDIO,
@@ -32,9 +29,9 @@ from core.constants import (  # noqa: E402
     ERROR_MESSAGES,
     VIDEO_FORMATS,
 )
-from core.downloader import DownloadManager  # noqa: E402
-from utils import Logger, format_size, format_time  # noqa: E402
-from utils.validators import validate_url  # noqa: E402
+from src.core.downloader import DownloadManager
+from src.utils import Logger, format_size, format_time
+from src.utils.validators import validate_download_format, validate_url
 
 PROJECT_ROOT = SRC_ROOT.parent
 ENV_PATH = PROJECT_ROOT / ".env"
@@ -51,7 +48,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "tem
 app = FastAPI(
     title="Video Downloader Web UI",
     description="基於 FastAPI 的影片/音訊下載服務，使用 yt-dlp",
-    version="2.2.0",
+    version=__version__,
 )
 app.mount(
     "/static",
@@ -84,12 +81,10 @@ class DownloadPayload(BaseModel):
             raise ValueError("download_type 必須為 video 或 audio")
         return value
 
-    @field_validator("format_option")
-    @classmethod
-    def _validate_format(cls, value: str) -> str:
-        if not value:
-            raise ValueError("格式選項不可為空")
-        return value
+    @model_validator(mode="after")
+    def _validate_format(self):
+        validate_download_format(self.download_type, self.format_option)
+        return self
 
 
 class WebDownloadService:
@@ -271,7 +266,7 @@ def run():
     import uvicorn
 
     port = int(os.getenv("PORT", "8000"))
-    uvicorn.run("src.web.app:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run("src.web.app:app", host="127.0.0.1", port=port, reload=False)
 
 
 if __name__ == "__main__":

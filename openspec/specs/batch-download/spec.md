@@ -38,3 +38,26 @@
 - **Given** 佇列已清空或批次已停止
 - **When** 工作迴圈結束
 - **Then** 系統 SHALL 回報批次摘要給完成回調
+
+### Requirement: Stop and restart batch safely
+批次停止時 MUST 取消目前任務與尚未執行任務，並在背景工作收尾完成前維持忙碌狀態。取消的任務 SHALL 標示為 `CANCELLED`，且不得重試。重新開始 SHALL 建立新批次，不得與舊下載同時執行。
+
+#### Scenario: Stop and immediately restart
+- **Given** 批次中的任務仍在執行
+- **When** 使用者取消批次並立即要求重新開始
+- **Then** 系統 SHALL 拒絕重新開始直到舊工作收尾
+- **And** 已取消任務 SHALL 不計為失敗
+
+#### Scenario: Clear while stopping
+- **Given** 批次仍在收尾
+- **When** 使用者清除佇列
+- **Then** 系統 SHALL 在舊工作收尾後清除任務與佇列
+
+### Requirement: Reject invalid batch inputs atomically
+批次輸入 MUST 在加入佇列前完成驗證；任一 URL 無效時 SHALL 指明項次並拒絕整批，保留原有佇列。
+
+#### Scenario: Mixed valid and invalid URLs
+- **Given** 批次清單包含有效和無效 URL
+- **When** 使用者提交清單
+- **Then** 系統 SHALL 提示無效項次
+- **And** 不新增任何任務或清除既有佇列

@@ -2,6 +2,8 @@
 
 ## 開發環境設置
 
+需要 Python 3.11 以上版本。FFmpeg 用於音訊轉換及部分影音合併；YouTube JavaScript 驗證需要 Deno。
+
 ### 1. 克隆專案
 ```bash
 git clone <repository_url>
@@ -36,23 +38,29 @@ python scripts/run_dev.py
 # 方法 2: 直接執行
 python main.py
 
-# 方法 3: 從 src 目錄執行
-cd src && python main.py
+# 方法 3: 以模組方式執行
+python -m src.main
 ```
 
 ### 執行測試
+
+以下 unittest 指令使用標準函式庫；若要使用覆蓋率指令，需另行安裝 `pytest` 與 `pytest-cov`。
+
 ```bash
 # 執行所有測試
-python -m pytest tests/
+python -m unittest discover -s tests -v
 
 # 執行特定測試檔案
-python -m pytest tests/test_utils.py
+python -m unittest tests.test_utils -v
 
 # 執行測試並顯示覆蓋率
 python -m pytest tests/ --cov=src
 ```
 
 ### 程式碼品質檢查
+
+以下工具需另行安裝：`flake8`、`black`、`isort`。
+
 ```bash
 # 使用 flake8 檢查程式碼風格
 flake8 src/
@@ -67,6 +75,9 @@ isort src/
 ## 建置與發布
 
 ### 建置套件
+
+先安裝 `build` 套件。`scripts/build.py` 會刪除現有的 `build/`、`dist/` 與根目錄的 `*.egg-info`，使用前請先確認其中沒有要保留的檔案。該腳本使用 `rm`，適用 macOS／Linux；Windows 請使用 `python -m build`。
+
 ```bash
 # 使用建置腳本
 python scripts/build.py
@@ -77,7 +88,8 @@ python -m build
 
 ### 本地安裝測試
 ```bash
-pip install dist/video-downloader-2.0.0.tar.gz
+# 將下方檔名替換為 dist 目錄中的實際 wheel 檔名
+python -m pip install dist/實際檔名.whl
 ```
 
 ## 程式碼規範
@@ -121,7 +133,7 @@ def function_name(param1: str, param2: int) -> bool:
 
 ### 日誌除錯
 ```python
-from utils.logger import Logger
+from src.utils.logger import Logger
 
 logger = Logger()
 logger.debug("除錯訊息")
@@ -181,3 +193,6 @@ type(scope): description
 - `refactor`: 重構
 - `test`: 測試相關
 - `chore`: 建置/工具相關
+## 版本資訊
+
+版本只在 `src/__init__.py` 的 `__version__` 維護；套件中繼資料、桌面標題及 Web API 均使用該值。修改版本時應同時更新可核實的發布紀錄。

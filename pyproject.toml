@@ -1,15 +1,15 @@
 [build-system]
-requires = ["setuptools>=45", "wheel"]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "video-downloader"
-version = "2.0.0"
 description = "優化版影片下載器，支援 YouTube、Bilibili 等多平台影片/音訊下載"
 authors = [{name = "Ned Lin"}]
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.11"
+dynamic = ["version", "dependencies"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
@@ -22,4 +22,7 @@ classifiers = [
 ]
 
 [project.scripts]
-video-downloader = "main:main"
+video-downloader = "src.main:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "src.__version__"}

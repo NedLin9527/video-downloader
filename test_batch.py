@@ -3,12 +3,10 @@
 批次下載測試腳本
 """
 
-import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from core.batch_downloader import BatchDownloadManager, TaskStatus
-from core.constants import DOWNLOAD_TYPE_AUDIO
+from src.core.batch_downloader import BatchDownloadManager, TaskStatus
+from src.core.constants import DOWNLOAD_TYPE_AUDIO
 import time
 
 def test_batch_download():
@@ -17,8 +15,7 @@ def test_batch_download():
     # 測試 URL（使用一些短音訊）
     test_urls = """
     https://www.youtube.com/watch?v=dQw4w9WgXcQ,
-    https://www.youtube.com/watch?v=oHg5SJYRHA0,
-    https://invalid-url-for-testing
+    https://www.youtube.com/watch?v=oHg5SJYRHA0
     """
     
     # 創建批次下載管理器

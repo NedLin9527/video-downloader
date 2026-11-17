@@ -7,7 +7,7 @@ import yt_dlp
 from typing import Dict, Callable, Optional
 from threading import Event
 
-from core.constants import (
+from src.core.constants import (
     DOWNLOAD_TYPE_VIDEO,
     DOWNLOAD_TYPE_AUDIO,
     VIDEO_FORMATS,
@@ -16,10 +16,10 @@ from core.constants import (
     DOWNLOAD_TIMEOUT,
     RETRY_ATTEMPTS,
 )
-from utils.logger import Logger
-from utils.file_utils import sanitize_filename, convert_to_traditional_chinese
-from utils.validators import validate_url
-from utils.system_utils import check_disk_space
+from src.utils.logger import Logger
+from src.utils.file_utils import sanitize_filename, convert_to_traditional_chinese
+from src.utils.validators import validate_download_format, validate_url
+from src.utils.system_utils import check_disk_space
 
 
 class DownloadTask:
@@ -89,6 +89,7 @@ class DownloadTask:
         base_options = {
             'outtmpl': os.path.join(self.output_path, '%(title)s.%(ext)s'),
             'progress_hooks': [self._progress_hook],
+            'post_hooks': [self._record_final_path],
             'socket_timeout': DOWNLOAD_TIMEOUT,
             'retries': RETRY_ATTEMPTS,
             'quiet': False,
@@ -96,17 +97,14 @@ class DownloadTask:
         }
 
         if self.download_type == DOWNLOAD_TYPE_VIDEO:
-            video_format = VIDEO_FORMATS.get(self.format_option, VIDEO_FORMATS["最高畫質"])
+            video_format = VIDEO_FORMATS[self.format_option]
             base_options.update({
                 'format': video_format,
                 'merge_output_format': 'mp4',
             })
 
         elif self.download_type == DOWNLOAD_TYPE_AUDIO:
-            audio_config = AUDIO_FORMATS.get(
-                self.format_option,
-                AUDIO_FORMATS["MP3 (192kbps)"]
-            )
+            audio_config = AUDIO_FORMATS[self.format_option]
             base_options.update({
                 'format': 'bestaudio/best',
                 'postprocessors': [{
@@ -118,26 +116,38 @@ class DownloadTask:
 
         return base_options
 
+    def _record_final_path(self, file_path: str):
+        """記錄 yt-dlp 完成合併、轉檔及移動後的路徑。"""
+        self.downloaded_file = file_path
+
     def execute(self) -> bool:
         """執行下載任務"""
+        self.downloaded_file = None
         try:
+            if self.is_cancelled():
+                return False
             if not validate_url(self.url):
                 raise ValueError(ERROR_MESSAGES['invalid_url'])
+            validate_download_format(self.download_type, self.format_option)
+            self.url = self.url.strip()
 
             os.makedirs(self.output_path, exist_ok=True)
             options = self._get_ydl_options()
 
             with yt_dlp.YoutubeDL(options) as ydl:
+                if self.is_cancelled():
+                    return False
                 self.info = ydl.extract_info(self.url, download=False)
 
-                estimated_size = self.info.get('filesize', 0) or self.info.get('filesize_approx', 0)
+                estimated_size = self.info.get('filesize', 0) or self.info.get('filesize_approx') or 0
                 if estimated_size > 0:
                     if not check_disk_space(self.output_path, estimated_size * 1.5):
                         raise Exception(ERROR_MESSAGES['disk_space_error'])
 
                 if not self.is_cancelled():
                     self.info = ydl.extract_info(self.url, download=True)
-                    self.downloaded_file = ydl.prepare_filename(self.info)
+                    if not self.downloaded_file or not os.path.isfile(self.downloaded_file):
+                        raise RuntimeError("找不到下載後的最終檔案")
                     self._convert_filename()
 
                     self.logger.info(f"下載完成: {self.downloaded_file}")
@@ -164,7 +174,7 @@ class DownloadTask:
             return
 
         # 檢查是否啟用自動轉換
-        from core.config import ConfigManager
+        from src.core.config import ConfigManager
         config = ConfigManager()
         if not config.get("auto_convert_filename", True):
             return
