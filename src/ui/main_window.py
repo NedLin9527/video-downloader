@@ -444,7 +444,7 @@ class VideoDownloaderUI:
 
     def _on_complete(self, file_path: str, info: dict):
         """下載完成回調"""
-        self.message_queue.put(('complete', file_path))
+        self.message_queue.put(('complete', (file_path, len(info.get('downloaded_files', [])))))
 
     def _on_error(self, error_msg: str):
         """錯誤回調"""
@@ -528,9 +528,13 @@ class VideoDownloaderUI:
             self.progress_label.config(text="處理中...")
             self.status_label.config(text="後處理中...")
 
-    def _handle_complete(self, file_path: str):
+    def _handle_complete(self, result):
         """處理下載完成"""
-        self.log_message(f"✓ 下載完成: {file_path}", "success")
+        file_path, playlist_count = result
+        if playlist_count:
+            self.log_message(f"✓ 播放清單下載完成：{playlist_count} 個檔案", "success")
+        else:
+            self.log_message(f"✓ 下載完成: {file_path}", "success")
 
         self.progress_bar['value'] = 0
         self.progress_label.config(text="")

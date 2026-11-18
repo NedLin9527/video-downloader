@@ -1,5 +1,6 @@
 """以受控執行緒驗證批次停止、清除、重啟及重試。"""
 import threading
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -35,6 +36,7 @@ class FakeTask:
 class TestBatchStop(unittest.TestCase):
     def setUp(self):
         self.manager = BatchDownloadManager(max_retries=1)
+        self.temp_dir = tempfile.TemporaryDirectory()
         self.started = threading.Event()
         self.release = threading.Event()
         self.created = []
@@ -45,9 +47,10 @@ class TestBatchStop(unittest.TestCase):
         self.release.set()
         if self.manager.worker_thread:
             self.manager.worker_thread.join(4)
+        self.temp_dir.cleanup()
 
     def queue(self, urls='https://example.com/one,https://example.com/two'):
-        return self.manager.add_urls_from_text(urls, 'video', '720p', '/tmp')
+        return self.manager.add_urls_from_text(urls, 'video', '720p', self.temp_dir.name)
 
     def install_factory(self, factory):
         def create_task(**kwargs):
@@ -108,8 +111,9 @@ class TestBatchStop(unittest.TestCase):
         with patch('src.core.downloader.yt_dlp.YoutubeDL') as ydl_factory:
             ydl = ydl_factory.return_value.__enter__.return_value
 
-            def extract_info(url, download):
+            def extract_info(url, download, process):
                 self.assertFalse(download)
+                self.assertFalse(process)
                 self.started.set()
                 if not self.release.wait(3):
                     raise RuntimeError('測試等待逾時')

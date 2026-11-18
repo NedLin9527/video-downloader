@@ -3,6 +3,7 @@
 """
 
 import os
+import shutil
 import yt_dlp
 from typing import Dict, Callable, Optional
 from threading import Event
@@ -20,6 +21,33 @@ from src.utils.logger import Logger
 from src.utils.file_utils import sanitize_filename, convert_to_traditional_chinese
 from src.utils.validators import validate_download_format, validate_url
 from src.utils.system_utils import check_disk_space
+
+
+def get_js_runtimes() -> Dict[str, Dict[str, str]]:
+    """回傳系統中可供 yt-dlp 使用的 JavaScript runtime。
+
+    近期 YouTube 的驗證程序需要 JavaScript runtime。yt-dlp 預設只會啟用
+    Deno；即使系統已安裝 Node.js，也必須明確傳入設定才會使用。
+    """
+    runtimes = {}
+    for runtime in ("deno", "node", "quickjs", "bun"):
+        runtime_path = shutil.which(runtime)
+        if runtime_path:
+            runtimes[runtime] = {"path": runtime_path}
+
+    # Chocolatey 的 Node.js MSI 會安裝到這裡。PyCharm 在 Node 安裝前就已
+    # 啟動時，程序繼承的 PATH 還沒有更新；直接使用標準安裝位置即可。
+    if "node" not in runtimes and os.name == "nt":
+        node_candidates = (
+            os.path.join(os.environ.get("ProgramFiles", r"C:\\Program Files"), "nodejs", "node.exe"),
+            os.path.join(os.environ.get("ProgramW6432", r"C:\\Program Files"), "nodejs", "node.exe"),
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "nodejs", "node.exe"),
+        )
+        for node_path in node_candidates:
+            if os.path.isfile(node_path):
+                runtimes["node"] = {"path": node_path}
+                break
+    return runtimes
 
 
 class DownloadTask:
@@ -46,6 +74,7 @@ class DownloadTask:
         self.cancel_event = Event()
         self.logger = Logger()
         self.downloaded_file = None
+        self.downloaded_files = []
         self.info = None
 
     def cancel(self):
@@ -92,9 +121,22 @@ class DownloadTask:
             'post_hooks': [self._record_final_path],
             'socket_timeout': DOWNLOAD_TIMEOUT,
             'retries': RETRY_ATTEMPTS,
+            'fragment_retries': RETRY_ATTEMPTS,
+            # YouTube 的媒體網址有時效。不要從舊 .part 檔以過期網址續傳，
+            # 否則很容易收到 HTTP 403；完整下載檔仍不會被覆寫。
+            'continuedl': False,
             'quiet': False,
             'no_warnings': False,
         }
+
+        js_runtimes = get_js_runtimes()
+        if js_runtimes:
+            base_options['js_runtimes'] = js_runtimes
+        else:
+            self.logger.warning(
+                "找不到 JavaScript runtime（Node.js 或 Deno）。"
+                "YouTube 可能無法取得所有格式，建議安裝 Node.js LTS。"
+            )
 
         if self.download_type == DOWNLOAD_TYPE_VIDEO:
             video_format = VIDEO_FORMATS[self.format_option]
@@ -119,10 +161,12 @@ class DownloadTask:
     def _record_final_path(self, file_path: str):
         """記錄 yt-dlp 完成合併、轉檔及移動後的路徑。"""
         self.downloaded_file = file_path
+        self.downloaded_files.append(file_path)
 
     def execute(self) -> bool:
         """執行下載任務"""
         self.downloaded_file = None
+        self.downloaded_files = []
         try:
             if self.is_cancelled():
                 return False
@@ -137,27 +181,50 @@ class DownloadTask:
             with yt_dlp.YoutubeDL(options) as ydl:
                 if self.is_cancelled():
                     return False
-                self.info = ydl.extract_info(self.url, download=False)
+                raw_info = ydl.extract_info(self.url, download=False, process=False)
+                if not raw_info:
+                    raise RuntimeError("無法取得影片資訊")
+                is_playlist = raw_info.get('_type') in {'playlist', 'multi_video', 'compat_list'}
 
-                estimated_size = self.info.get('filesize', 0) or self.info.get('filesize_approx') or 0
-                if estimated_size > 0:
-                    if not check_disk_space(self.output_path, estimated_size * 1.5):
+                if is_playlist:
+                    # Python API 預設遇到不可用項目會中止；播放清單應繼續處理其他項目。
+                    ydl.params['ignoreerrors'] = True
+                    self.info = ydl.process_ie_result(raw_info, download=True)
+                else:
+                    preview = ydl.process_ie_result(raw_info, download=False)
+                    if not preview:
+                        raise RuntimeError("無法取得影片資訊")
+                    estimated_size = preview.get('filesize', 0) or preview.get('filesize_approx') or 0
+                    if estimated_size > 0 and not check_disk_space(self.output_path, estimated_size * 1.5):
                         raise Exception(ERROR_MESSAGES['disk_space_error'])
-
-                if not self.is_cancelled():
+                    if self.is_cancelled():
+                        return False
                     self.info = ydl.extract_info(self.url, download=True)
-                    if not self.downloaded_file or not os.path.isfile(self.downloaded_file):
-                        raise RuntimeError("找不到下載後的最終檔案")
+
+                if self.is_cancelled():
+                    return False
+                if not self.downloaded_files:
+                    raise RuntimeError("播放清單沒有成功下載的檔案" if is_playlist else "找不到下載後的最終檔案")
+
+                converted_files = []
+                for file_path in self.downloaded_files:
+                    if not os.path.isfile(file_path):
+                        raise RuntimeError(f"找不到下載後的最終檔案: {file_path}")
+                    self.downloaded_file = file_path
                     self._convert_filename()
+                    converted_files.append(self.downloaded_file)
+                self.downloaded_files = converted_files
+                self.downloaded_file = converted_files[-1]
+                self.info = self.info or {}
 
-                    self.logger.info(f"下載完成: {self.downloaded_file}")
+                if is_playlist:
+                    self.info['downloaded_files'] = list(converted_files)
+                    self.logger.info(f"播放清單下載完成：{len(converted_files)} 個檔案")
 
-                    if self.complete_callback:
-                        self.complete_callback(self.downloaded_file, self.info)
-
-                    return True
-
-            return False
+                self.logger.info(f"下載完成: {self.downloaded_file}")
+                if self.complete_callback:
+                    self.complete_callback(self.downloaded_file, self.info)
+                return True
 
         except Exception as e:
             error_msg = str(e)

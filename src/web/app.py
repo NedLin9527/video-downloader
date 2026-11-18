@@ -149,11 +149,12 @@ class WebDownloadService:
                 )
 
         def _complete_callback(file_path: str, info: Dict[str, Any]):
+            playlist_count = len(info.get("downloaded_files", []))
             self._update_task(
                 task_id,
                 status="completed",
                 progress=100.0,
-                message="下載完成",
+                message=f"播放清單下載完成：{playlist_count} 個檔案" if playlist_count else "下載完成",
                 file_path=file_path,
             )
 
