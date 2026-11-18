@@ -132,14 +132,15 @@ class VideoDownloaderUI:
         self.url_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
         ttk.Button(row, text="貼上", command=self._paste_url).pack(side=tk.LEFT)
         self.batch_frame = ttk.Frame(card, style="Card.TFrame")
-        ttk.Label(self.batch_frame, text="每行一個網址，或以逗號分隔", style="Muted.TLabel").pack(anchor=tk.W, pady=(2, 3))
+        ttk.Label(self.batch_frame, text="多個網址請以逗號分隔", style="Muted.TLabel").pack(anchor=tk.W, pady=(2, 3))
         batch_row = ttk.Frame(self.batch_frame, style="Card.TFrame")
         batch_row.pack(fill=tk.X)
         self.batch_text = scrolledtext.ScrolledText(batch_row, height=2, wrap=tk.WORD,
-                                                    relief=tk.SOLID, borderwidth=1, font=("Helvetica", 11))
-        self.batch_text.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                                                    relief=tk.SOLID, borderwidth=1, font=("Helvetica", 11),
+                                                    background="#f8fafc", foreground="#273449", insertbackground="#273449")
         actions = ttk.Frame(batch_row, style="Card.TFrame")
-        actions.pack(side=tk.LEFT, padx=(8, 0))
+        actions.pack(side=tk.RIGHT, padx=(8, 0))
+        self.batch_text.pack(side=tk.LEFT, fill=tk.X, expand=True)
         ttk.Button(actions, text="從剪貼簿載入", command=self._load_batch_urls).pack(fill=tk.X)
         ttk.Button(actions, text="清除輸入", command=lambda: self.batch_text.delete(1.0, tk.END)).pack(fill=tk.X)
 

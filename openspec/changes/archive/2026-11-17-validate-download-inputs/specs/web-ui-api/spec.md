@@ -1,4 +1,4 @@
-## ADDED
+## ADDED Requirements
 ### Requirement: Reject invalid download inputs
 Web API MUST 在建立任務前驗證完整 URL 和下載類型對應的格式；無效輸入 SHALL 回傳 HTTP 422 和明確錯誤。
 

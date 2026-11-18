@@ -1,4 +1,4 @@
-## ADDED
+## ADDED Requirements
 ### Requirement: Stop and restart batch safely
 批次停止時 MUST 取消目前任務與尚未執行任務，並在背景工作收尾完成前維持忙碌狀態。取消的任務 SHALL 標示為 `CANCELLED`，且不得重試。重新開始 SHALL 建立新批次，不得與舊下載同時執行。
 

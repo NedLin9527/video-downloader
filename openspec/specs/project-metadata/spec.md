@@ -1,5 +1,8 @@
 # Capability: Project Metadata
 
+## Purpose
+定義專案版本資訊的一致性，以及環境需求與操作文件的準確性，確保套件中繼資料、桌面介面、Web API 和使用文件對外呈現一致且可追溯的資訊。
+
 ## Requirements
 ### Requirement: Consistent application version
 套件中繼資料、桌面標題及 Web API 版本 MUST 使用同一個專案版本來源。

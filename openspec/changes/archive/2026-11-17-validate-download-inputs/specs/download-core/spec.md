@@ -1,4 +1,4 @@
-## ADDED
+## ADDED Requirements
 ### Requirement: Validate complete download inputs
 系統 MUST 驗證完整 HTTP(S) URL，以及下載類型和格式選項的對應關係；驗證失敗 SHALL 回報明確錯誤且不啟動 yt-dlp。
 

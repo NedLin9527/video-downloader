@@ -21,10 +21,10 @@
 - `specs/<capability>/spec.md`：以 Delta 格式撰寫
 
 Delta 章節僅可使用：
-- `## ADDED`
-- `## MODIFIED`
-- `## REMOVED`
-- `## RENAMED`
+- `## ADDED Requirements`
+- `## MODIFIED Requirements`
+- `## REMOVED Requirements`
+- `## RENAMED Requirements`
 
 `MODIFIED` 必須貼出完整修改後需求內容，不能只寫差異。
 

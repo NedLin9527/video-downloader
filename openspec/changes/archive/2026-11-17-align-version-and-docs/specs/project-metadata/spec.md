@@ -1,4 +1,4 @@
-## ADDED
+## ADDED Requirements
 ### Requirement: Consistent application version
 套件中繼資料、桌面標題及 Web API 版本 MUST 使用同一個專案版本來源。
 

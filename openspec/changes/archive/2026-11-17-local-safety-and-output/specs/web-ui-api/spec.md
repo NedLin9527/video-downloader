@@ -1,4 +1,4 @@
-## ADDED
+## ADDED Requirements
 ### Requirement: Local-only default listener
 Web 啟動入口與文件中的預設啟動方式 MUST 僅監聽本機 loopback 介面。
 
