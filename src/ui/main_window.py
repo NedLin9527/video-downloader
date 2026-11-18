@@ -11,10 +11,6 @@ import os
 
 from src.core.constants import (
     APP_TITLE,
-    WINDOW_WIDTH,
-    WINDOW_HEIGHT,
-    URL_ENTRY_WIDTH,
-    MESSAGE_TEXT_HEIGHT,
     VIDEO_FORMATS,
     AUDIO_FORMATS,
     DOWNLOAD_TYPE_VIDEO,
@@ -37,7 +33,8 @@ class VideoDownloaderUI:
     def __init__(self, master: tk.Tk):
         self.master = master
         self.master.title(APP_TITLE)
-        self.master.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+        self.master.geometry("820x780")
+        self.master.minsize(680, 700)
 
         # 初始化管理器
         self.config = ConfigManager()
@@ -66,202 +63,156 @@ class VideoDownloaderUI:
         self._process_message_queue()
 
     def _create_widgets(self):
-        """建立所有 UI 元件"""
-        # 主容器
-        main_frame = ttk.Frame(self.master, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        """建立下載工作區。"""
+        self._configure_styles()
+        self.master.configure(background="#f2f5f9")
+        main = ttk.Frame(self.master, style="App.TFrame", padding=(22, 12))
+        main.pack(fill=tk.BOTH, expand=True)
 
-        # URL 輸入區
-        self._create_url_section(main_frame)
+        header = ttk.Frame(main, style="App.TFrame")
+        header.pack(fill=tk.X, pady=(0, 8))
+        ttk.Label(header, text="VIDEO DOWNLOADER", style="Eyebrow.TLabel").pack(anchor=tk.W)
+        title_row = ttk.Frame(header, style="App.TFrame")
+        title_row.pack(fill=tk.X)
+        ttk.Label(title_row, text="影片下載器", style="Title.TLabel").pack(side=tk.LEFT)
+        ttk.Button(title_row, text="設定", style="Quiet.TButton",
+                   command=self._show_settings).pack(side=tk.RIGHT)
+        ttk.Label(header, text="貼上連結，選擇格式，開始下載。", style="Subtitle.TLabel").pack(anchor=tk.W, pady=(4, 0))
 
-        # 格式選擇區
-        self._create_format_section(main_frame)
+        self._create_url_section(main)
+        self._create_format_section(main)
+        self._create_path_section(main)
+        self._create_button_section(main)
+        self._create_progress_section(main)
+        self._create_message_section(main)
+        self._create_status_bar(main)
 
-        # 下載路徑區
-        self._create_path_section(main_frame)
+    def _configure_styles(self):
+        style = ttk.Style(self.master)
+        style.theme_use("clam")
+        style.configure("App.TFrame", background="#f2f5f9")
+        style.configure("Card.TFrame", background="#ffffff")
+        style.configure("App.TLabel", background="#f2f5f9", foreground="#273449", font=("Helvetica", 11))
+        style.configure("Card.TLabel", background="#ffffff", foreground="#273449", font=("Helvetica", 11))
+        style.configure("Muted.TLabel", background="#ffffff", foreground="#68778b", font=("Helvetica", 10))
+        style.configure("Section.TLabel", background="#ffffff", foreground="#18263a", font=("Helvetica", 12, "bold"))
+        style.configure("Title.TLabel", background="#f2f5f9", foreground="#142238", font=("Helvetica", 21, "bold"))
+        style.configure("Eyebrow.TLabel", background="#f2f5f9", foreground="#3167ca", font=("Helvetica", 9, "bold"))
+        style.configure("Subtitle.TLabel", background="#f2f5f9", foreground="#68778b", font=("Helvetica", 11))
+        style.configure("Card.TRadiobutton", background="#ffffff", foreground="#273449", font=("Helvetica", 11))
+        style.map("Card.TRadiobutton", background=[("active", "#ffffff")])
+        style.configure("TEntry", padding=4, fieldbackground="#f8fafc", bordercolor="#d7e0eb")
+        style.configure("TCombobox", padding=4, fieldbackground="#f8fafc", bordercolor="#d7e0eb")
+        style.configure("TButton", padding=(12, 5), font=("Helvetica", 10), background="#edf2f8", foreground="#273449", borderwidth=0)
+        style.map("TButton", background=[("active", "#dfe8f4"), ("disabled", "#edf2f8")], foreground=[("disabled", "#a0aabb")])
+        style.configure("Primary.TButton", background="#3268d4", foreground="#ffffff", font=("Helvetica", 11, "bold"))
+        style.map("Primary.TButton", background=[("disabled", "#b9c9e6"), ("active", "#2556b8")], foreground=[("disabled", "#f4f6fa")])
+        style.configure("Quiet.TButton", background="#e5ebf3", foreground="#34465d")
+        style.configure("Download.Horizontal.TProgressbar", troughcolor="#e8eef5", background="#3268d4", borderwidth=0, thickness=8)
 
-        # 按鈕區
-        self._create_button_section(main_frame)
-
-        # 進度條
-        self._create_progress_section(main_frame)
-
-        # 訊息顯示區
-        self._create_message_section(main_frame)
-
-        # 狀態列
-        self._create_status_bar(main_frame)
+    def _card(self, parent):
+        card = ttk.Frame(parent, style="Card.TFrame", padding=(14, 8))
+        card.pack(fill=tk.X, pady=(0, 6))
+        return card
 
     def _create_url_section(self, parent):
-        """建立 URL 輸入區"""
-        url_frame = ttk.LabelFrame(parent, text="影片/音樂 URL", padding="5")
-        url_frame.pack(fill=tk.X, pady=5)
-
-        # 模式切換
-        mode_frame = ttk.Frame(url_frame)
-        mode_frame.pack(fill=tk.X, pady=(0, 5))
-        
+        card = self._card(parent)
+        heading = ttk.Frame(card, style="Card.TFrame")
+        heading.pack(fill=tk.X)
+        ttk.Label(heading, text="01  下載連結", style="Section.TLabel").pack(side=tk.LEFT)
         self.mode_var = tk.StringVar(value="single")
-        ttk.Radiobutton(mode_frame, text="單一下載", variable=self.mode_var, 
-                       value="single", command=self._toggle_mode).pack(side=tk.LEFT)
-        ttk.Radiobutton(mode_frame, text="批次下載", variable=self.mode_var, 
-                       value="batch", command=self._toggle_mode).pack(side=tk.LEFT, padx=(10, 0))
-
-        # URL 輸入區
-        input_frame = ttk.Frame(url_frame)
-        input_frame.pack(fill=tk.X)
-        
-        self.url_entry = ttk.Entry(input_frame, width=URL_ENTRY_WIDTH)
-        self.url_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-
-        paste_btn = ttk.Button(input_frame, text="貼上", command=self._paste_url)
-        paste_btn.pack(side=tk.LEFT)
-        
-        # 批次輸入區（初始隱藏）
-        self.batch_frame = ttk.Frame(url_frame)
-        
-        ttk.Label(self.batch_frame, text="批次 URL（逗號分隔）:").pack(anchor=tk.W)
-        self.batch_text = scrolledtext.ScrolledText(self.batch_frame, height=4, wrap=tk.WORD)
-        self.batch_text.pack(fill=tk.X, pady=5)
-        
-        batch_btn_frame = ttk.Frame(self.batch_frame)
-        batch_btn_frame.pack(fill=tk.X)
-        
-        ttk.Button(batch_btn_frame, text="載入批次清單", 
-                  command=self._load_batch_urls).pack(side=tk.LEFT)
-        ttk.Button(batch_btn_frame, text="清除", 
-                  command=lambda: self.batch_text.delete(1.0, tk.END)).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Radiobutton(heading, text="單一", variable=self.mode_var, value="single",
+                        command=self._toggle_mode, style="Card.TRadiobutton").pack(side=tk.RIGHT)
+        ttk.Radiobutton(heading, text="批次", variable=self.mode_var, value="batch",
+                        command=self._toggle_mode, style="Card.TRadiobutton").pack(side=tk.RIGHT, padx=(0, 16))
+        ttk.Label(card, text="輸入影片或音樂網址", style="Muted.TLabel").pack(anchor=tk.W, pady=(2, 4))
+        row = ttk.Frame(card, style="Card.TFrame")
+        row.pack(fill=tk.X)
+        self.url_entry = ttk.Entry(row)
+        self.url_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        ttk.Button(row, text="貼上", command=self._paste_url).pack(side=tk.LEFT)
+        self.batch_frame = ttk.Frame(card, style="Card.TFrame")
+        ttk.Label(self.batch_frame, text="每行一個網址，或以逗號分隔", style="Muted.TLabel").pack(anchor=tk.W, pady=(2, 3))
+        batch_row = ttk.Frame(self.batch_frame, style="Card.TFrame")
+        batch_row.pack(fill=tk.X)
+        self.batch_text = scrolledtext.ScrolledText(batch_row, height=2, wrap=tk.WORD,
+                                                    relief=tk.SOLID, borderwidth=1, font=("Helvetica", 11))
+        self.batch_text.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        actions = ttk.Frame(batch_row, style="Card.TFrame")
+        actions.pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Button(actions, text="從剪貼簿載入", command=self._load_batch_urls).pack(fill=tk.X)
+        ttk.Button(actions, text="清除輸入", command=lambda: self.batch_text.delete(1.0, tk.END)).pack(fill=tk.X)
 
     def _create_format_section(self, parent):
-        """建立格式選擇區"""
-        format_frame = ttk.LabelFrame(parent, text="格式設定", padding="5")
-        format_frame.pack(fill=tk.X, pady=5)
-
-        # 影片格式
-        ttk.Label(format_frame, text="影片品質:").grid(row=0, column=0, sticky=tk.W, padx=5)
+        card = self._card(parent)
+        ttk.Label(card, text="02  下載格式", style="Section.TLabel").pack(anchor=tk.W)
+        row = ttk.Frame(card, style="Card.TFrame")
+        row.pack(fill=tk.X, pady=(5, 0))
         self.video_format_var = tk.StringVar(value=self.config.get("video_format"))
-        video_combo = ttk.Combobox(
-            format_frame,
-            textvariable=self.video_format_var,
-            values=list(VIDEO_FORMATS.keys()),
-            state="readonly",
-            width=20
-        )
-        video_combo.grid(row=0, column=1, sticky=tk.W, padx=5)
-
-        # 音訊格式
-        ttk.Label(format_frame, text="音訊品質:").grid(row=0, column=2, sticky=tk.W, padx=5)
         self.audio_format_var = tk.StringVar(value=self.config.get("audio_format"))
-        audio_combo = ttk.Combobox(
-            format_frame,
-            textvariable=self.audio_format_var,
-            values=list(AUDIO_FORMATS.keys()),
-            state="readonly",
-            width=20
-        )
-        audio_combo.grid(row=0, column=3, sticky=tk.W, padx=5)
+        for column, (label, variable, values) in enumerate((
+            ("影片畫質", self.video_format_var, VIDEO_FORMATS),
+            ("音訊格式", self.audio_format_var, AUDIO_FORMATS),
+        )):
+            group = ttk.Frame(row, style="Card.TFrame")
+            group.grid(row=0, column=column, sticky="ew", padx=(0, 12) if column == 0 else (0, 0))
+            row.columnconfigure(column, weight=1)
+            ttk.Label(group, text=label, style="Muted.TLabel").pack(anchor=tk.W, pady=(0, 2))
+            ttk.Combobox(group, textvariable=variable, values=list(values), state="readonly").pack(fill=tk.X)
 
     def _create_path_section(self, parent):
-        """建立下載路徑區"""
-        path_frame = ttk.LabelFrame(parent, text="下載設定", padding="5")
-        path_frame.pack(fill=tk.X, pady=5)
-
-        ttk.Label(path_frame, text="儲存路徑:").pack(side=tk.LEFT)
-
-        self.path_entry = ttk.Entry(path_frame, width=50)
+        card = self._card(parent)
+        ttk.Label(card, text="03  儲存位置", style="Section.TLabel").pack(anchor=tk.W)
+        row = ttk.Frame(card, style="Card.TFrame")
+        row.pack(fill=tk.X, pady=(5, 0))
+        self.path_entry = ttk.Entry(row)
         self.path_entry.insert(0, self.config.get_download_path())
-        self.path_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-
-        browse_btn = ttk.Button(path_frame, text="瀏覽...", command=self._browse_path)
-        browse_btn.pack(side=tk.LEFT)
+        self.path_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        ttk.Button(row, text="瀏覽", command=self._browse_path).pack(side=tk.LEFT)
 
     def _create_button_section(self, parent):
-        """建立按鈕區"""
-        button_frame = ttk.Frame(parent)
-        button_frame.pack(fill=tk.X, pady=10)
-
-        self.download_video_btn = ttk.Button(
-            button_frame,
-            text="下載影片",
-            command=lambda: self._start_download(DOWNLOAD_TYPE_VIDEO)
-        )
-        self.download_video_btn.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-
-        self.download_audio_btn = ttk.Button(
-            button_frame,
-            text="下載音樂",
-            command=lambda: self._start_download(DOWNLOAD_TYPE_AUDIO)
-        )
-        self.download_audio_btn.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-
-        self.cancel_btn = ttk.Button(
-            button_frame,
-            text="取消下載",
-            command=self._cancel_download,
-            state=tk.DISABLED
-        )
-        self.cancel_btn.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-        
-        # 批次控制按鈕
-        self.batch_control_frame = ttk.Frame(button_frame)
-        
-        self.clear_queue_btn = ttk.Button(
-            self.batch_control_frame,
-            text="清除佇列",
-            command=self._clear_batch_queue
-        )
-        self.clear_queue_btn.pack(side=tk.LEFT, padx=5)
-
-        settings_btn = ttk.Button(
-            button_frame,
-            text="設定",
-            command=self._show_settings
-        )
-        settings_btn.pack(side=tk.LEFT, padx=5)
+        row = ttk.Frame(parent, style="App.TFrame")
+        row.pack(fill=tk.X, pady=(0, 6))
+        self.download_video_btn = ttk.Button(row, text="下載影片", style="Primary.TButton",
+                                             command=lambda: self._start_download(DOWNLOAD_TYPE_VIDEO))
+        self.download_video_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        self.download_audio_btn = ttk.Button(row, text="下載音樂",
+                                             command=lambda: self._start_download(DOWNLOAD_TYPE_AUDIO))
+        self.download_audio_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        self.cancel_btn = ttk.Button(row, text="取消下載", command=self._cancel_download, state=tk.DISABLED)
+        self.cancel_btn.pack(side=tk.LEFT, padx=(0, 8))
+        self.batch_control_frame = ttk.Frame(row, style="App.TFrame")
+        self.clear_queue_btn = ttk.Button(self.batch_control_frame, text="清除佇列", command=self._clear_batch_queue)
+        self.clear_queue_btn.pack(side=tk.LEFT)
 
     def _create_progress_section(self, parent):
-        """建立進度條區"""
-        progress_frame = ttk.Frame(parent)
-        progress_frame.pack(fill=tk.X, pady=5)
-
-        self.progress_bar = ttk.Progressbar(
-            progress_frame,
-            mode='determinate',
-            length=300
-        )
-        self.progress_bar.pack(fill=tk.X)
-
-        self.progress_label = ttk.Label(progress_frame, text="")
-        self.progress_label.pack(pady=5)
-        
-        # 批次進度資訊
-        self.batch_progress_label = ttk.Label(progress_frame, text="")
-        self.batch_progress_label.pack(pady=2)
+        card = self._card(parent)
+        heading = ttk.Frame(card, style="Card.TFrame")
+        heading.pack(fill=tk.X)
+        ttk.Label(heading, text="下載進度", style="Section.TLabel").pack(side=tk.LEFT)
+        self.status_label = ttk.Label(heading, text="就緒", style="Muted.TLabel")
+        self.status_label.pack(side=tk.RIGHT)
+        self.progress_bar = ttk.Progressbar(card, mode="determinate", style="Download.Horizontal.TProgressbar")
+        self.progress_bar.pack(fill=tk.X, pady=(5, 0))
+        self.progress_label = ttk.Label(card, text="", style="Muted.TLabel")
+        self.progress_label.pack(anchor=tk.W)
+        self.batch_progress_label = ttk.Label(card, text="", style="Muted.TLabel")
+        self.batch_progress_label.pack(anchor=tk.W)
 
     def _create_message_section(self, parent):
-        """建立訊息顯示區"""
-        message_frame = ttk.LabelFrame(parent, text="下載記錄", padding="5")
-        message_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-
-        self.message_text = scrolledtext.ScrolledText(
-            message_frame,
-            height=MESSAGE_TEXT_HEIGHT,
-            state=tk.DISABLED,
-            wrap=tk.WORD
-        )
+        card = ttk.Frame(parent, style="Card.TFrame", padding=(14, 8))
+        card.pack(fill=tk.BOTH, expand=True)
+        heading = ttk.Frame(card, style="Card.TFrame")
+        heading.pack(fill=tk.X, pady=(0, 3))
+        ttk.Label(heading, text="下載記錄", style="Section.TLabel").pack(side=tk.LEFT)
+        ttk.Button(heading, text="清除記錄", command=self._clear_messages).pack(side=tk.RIGHT)
+        self.message_text = scrolledtext.ScrolledText(card, height=3, state=tk.DISABLED, wrap=tk.WORD,
+                                                       relief=tk.FLAT, background="#f8fafc", foreground="#43536a",
+                                                       font=("Helvetica", 10), padx=8, pady=8)
         self.message_text.pack(fill=tk.BOTH, expand=True)
 
-        # 清除按鈕
-        clear_btn = ttk.Button(message_frame, text="清除記錄", command=self._clear_messages)
-        clear_btn.pack(pady=5)
-
     def _create_status_bar(self, parent):
-        """建立狀態列"""
-        status_frame = ttk.Frame(parent)
-        status_frame.pack(fill=tk.X, side=tk.BOTTOM)
-
-        self.status_label = ttk.Label(status_frame, text="就緒", relief=tk.SUNKEN)
-        self.status_label.pack(fill=tk.X)
+        """狀態顯示位於進度區。"""
 
     def _setup_bindings(self):
         """設定快捷鍵綁定"""
@@ -304,7 +255,8 @@ class VideoDownloaderUI:
 
     def _check_ffmpeg(self):
         """檢查 FFmpeg 是否安裝"""
-        if not is_ffmpeg_installed():
+        self.ffmpeg_available = is_ffmpeg_installed()
+        if not self.ffmpeg_available:
             self.log_message("⚠️ 警告: FFmpeg 未安裝，音訊轉換功能將無法使用", "warning")
             self.download_audio_btn.config(state=tk.DISABLED)
 
@@ -612,7 +564,7 @@ class VideoDownloaderUI:
             self.cancel_btn.config(state=tk.NORMAL)
         else:
             self.download_video_btn.config(state=tk.NORMAL)
-            self.download_audio_btn.config(state=tk.NORMAL)
+            self.download_audio_btn.config(state=tk.NORMAL if self.ffmpeg_available else tk.DISABLED)
             self.cancel_btn.config(state=tk.DISABLED)
 
     def log_message(self, message: str, level: str = "info"):
